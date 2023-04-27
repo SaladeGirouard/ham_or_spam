@@ -1,120 +1,122 @@
-
 import streamlit as st
 
-@st.cache(suppress_st_warning=True, allow_output_mutation=True)
-def firstco():
-    import pandas as pd
-    import nltk
-    nltk.download('omw-1.4')
-    nltk.download('stopwords')
-    nltk.download('wordnet')
-    nltk.download('punkt')
-    from nltk.corpus import stopwords
-    from nltk.stem import WordNetLemmatizer
-    import string
-    from sklearn.pipeline import Pipeline
-    from sklearn.model_selection import train_test_split
-    from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, TfidfTransformer
-    from sklearn.metrics import classification_report
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.naive_bayes import MultinomialNB
-    # deep learning libraries for text pre-processing
-    import tensorflow as tf
-    from tensorflow.keras.preprocessing.text import Tokenizer
-    from tensorflow.keras.preprocessing.sequence import pad_sequences
-    # Modeling 
-    from tensorflow.keras.callbacks import EarlyStopping
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import Embedding, GlobalAveragePooling1D, Dense, Dropout, LSTM, Bidirectional
+
+
+# # @st.cache(suppress_st_warning=True, allow_output_mutation=True)
+# def firstco():
+import pandas as pd
+import numpy as np
+import nltk
+nltk.download('omw-1.4')
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('punkt')
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import string
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer, TfidfTransformer
+from sklearn.metrics import classification_report
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+# deep learning libraries for text pre-processing
+import tensorflow as tf
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+# Modeling 
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, GlobalAveragePooling1D, Dense, Dropout, LSTM, Bidirectional
+
+dfspam = pd.read_csv('SMSSpamCollection.csv',sep="	")
+
+# Définir les stopwords, la ponctuation et le lemmatiseur
+stopwords = set(stopwords.words('english'))
+punctuation = set(string.punctuation)
+lemmatizer = WordNetLemmatizer()
+
+# Fonction pour nettoyer le texte
+def clean_text(text):
+    # Mettre en minuscule
+    text = text.lower()
+    # Enlever la ponctuation
+    text = ''.join(char for char in text if char not in punctuation)
+    # Enlever les stopwords et lemmatiser
+    tokens = nltk.word_tokenize(text)
+    text = ' '.join(lemmatizer.lemmatize(word) for word in tokens if word not in stopwords)
+    return text
+
+dfspam['comment_clean'] =0
+for i in range(len(dfspam['comment'])):
+    dfspam['comment_clean'].iloc[i] = clean_text(dfspam['comment'].iloc[i])
+
+X = dfspam['comment_clean']
+y = dfspam['Type']
+
+def classify(model, X, y):
+    # train test split
+    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, shuffle=True, stratify=y)
+    # model training
+    pipeline_model = Pipeline([('vect', CountVectorizer()),
+                            ('tfidf',TfidfTransformer()),
+                            ('clf', model)])
+    pipeline_model.fit(x_train, y_train)
     
-    dfspam = pd.read_csv('SMSSpamCollection.csv',sep="	")
-
-    # Définir les stopwords, la ponctuation et le lemmatiseur
-    stopwords = set(stopwords.words('english'))
-    punctuation = set(string.punctuation)
-    lemmatizer = WordNetLemmatizer()
-
-    # Fonction pour nettoyer le texte
-    def clean_text(text):
-        # Mettre en minuscule
-        text = text.lower()
-        # Enlever la ponctuation
-        text = ''.join(char for char in text if char not in punctuation)
-        # Enlever les stopwords et lemmatiser
-        tokens = nltk.word_tokenize(text)
-        text = ' '.join(lemmatizer.lemmatize(word) for word in tokens if word not in stopwords)
-        return text
+    y_pred = pipeline_model.predict(x_test)
     
-    dfspam['comment_clean'] =0
-    for i in range(len(dfspam['comment'])):
-        dfspam['comment_clean'].iloc[i] = clean_text(dfspam['comment'].iloc[i])
+    return pipeline_model
 
-    X = dfspam['comment_clean']
-    y = dfspam['Type']
+model_naive = MultinomialNB()
 
-    def classify(model, X, y):
-        # train test split
-        x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, shuffle=True, stratify=y)
-        # model training
-        pipeline_model = Pipeline([('vect', CountVectorizer()),
-                                ('tfidf',TfidfTransformer()),
-                                ('clf', model)])
-        pipeline_model.fit(x_train, y_train)
-        
-        y_pred = pipeline_model.predict(x_test)
-        
-        return pipeline_model
+pipeline_model = classify(model_naive, X, y)
 
-    model_naive = MultinomialNB()
+# Get all the ham and spam emails
+ham_msg = dfspam[dfspam.Type =='ham']
+spam_msg = dfspam[dfspam.Type=='spam']
 
-    pipeline_model = classify(model_naive, X, y)
+dfspam['msg_type']= dfspam['Type'].map({'ham': 0, 'spam': 1})
+msg_label = dfspam['msg_type'].values
 
-    # Get all the ham and spam emails
-    ham_msg = dfspam[dfspam.Type =='ham']
-    spam_msg = dfspam[dfspam.Type=='spam']
+train_msg, test_msg, train_labels, test_labels = train_test_split(dfspam['comment_clean'], msg_label, test_size=0.2, random_state=22)
 
-    dfspam['msg_type']= dfspam['Type'].map({'ham': 0, 'spam': 1})
-    msg_label = dfspam['msg_type'].values
+# Defining pre-processing hyperparameters
+max_len = 50 
+trunc_type = "post" 
+padding_type = "post" 
+oov_tok = "<OOV>" 
+vocab_size = 500
 
-    train_msg, test_msg, train_labels, test_labels = train_test_split(dfspam['comment_clean'], msg_label, test_size=0.2, random_state=22)
+tokenizer = Tokenizer(num_words = vocab_size, char_level=False, oov_token = oov_tok)
+tokenizer.fit_on_texts(train_msg)
 
-    # Defining pre-processing hyperparameters
-    max_len = 50 
-    trunc_type = "post" 
-    padding_type = "post" 
-    oov_tok = "<OOV>" 
-    vocab_size = 500
+# Sequencing and padding on training and testing 
+training_sequences = tokenizer.texts_to_sequences(train_msg)
+training_padded = pad_sequences (training_sequences, maxlen = max_len, padding = padding_type, truncating = trunc_type )
+testing_sequences = tokenizer.texts_to_sequences(test_msg)
+testing_padded = pad_sequences(testing_sequences, maxlen = max_len,
+padding = padding_type, truncating = trunc_type)
 
-    tokenizer = Tokenizer(num_words = vocab_size, char_level=False, oov_token = oov_tok)
-    tokenizer.fit_on_texts(train_msg)
+embeding_dim = 16
+drop_value = 0.2 # dropout
+n_dense = 24
 
-    # Sequencing and padding on training and testing 
-    training_sequences = tokenizer.texts_to_sequences(train_msg)
-    training_padded = pad_sequences (training_sequences, maxlen = max_len, padding = padding_type, truncating = trunc_type )
-    testing_sequences = tokenizer.texts_to_sequences(test_msg)
-    testing_padded = pad_sequences(testing_sequences, maxlen = max_len,
-    padding = padding_type, truncating = trunc_type)
+#Dense model architecture
+model = Sequential()
+model.add(Embedding(vocab_size, embeding_dim, input_length=max_len))
+model.add(GlobalAveragePooling1D())
+model.add(Dense(24, activation='relu'))
+model.add(Dropout(drop_value))
+model.add(Dense(1, activation='sigmoid'))
 
-    embeding_dim = 16
-    drop_value = 0.2 # dropout
-    n_dense = 24
+model.compile(loss='binary_crossentropy',optimizer='adam' ,metrics=['accuracy'])
 
-    #Dense model architecture
-    model = Sequential()
-    model.add(Embedding(vocab_size, embeding_dim, input_length=max_len))
-    model.add(GlobalAveragePooling1D())
-    model.add(Dense(24, activation='relu'))
-    model.add(Dropout(drop_value))
-    model.add(Dense(1, activation='sigmoid'))
+# fitting a dense spam detector model
+num_epochs = 30
+early_stop = EarlyStopping(monitor='val_loss', patience=3)
+history = model.fit(training_padded, train_labels, epochs=num_epochs, validation_data=(testing_padded, test_labels),callbacks =[early_stop], verbose=2)
 
-    model.compile(loss='binary_crossentropy',optimizer='adam' ,metrics=['accuracy'])
-
-    # fitting a dense spam detector model
-    num_epochs = 30
-    early_stop = EarlyStopping(monitor='val_loss', patience=3)
-    history = model.fit(training_padded, train_labels, epochs=num_epochs, validation_data=(testing_padded, test_labels),callbacks =[early_stop], verbose=2)
-
-    return dfspam, model, pipeline_model
+# return dfspam, model, pipeline_model
 
 
 ### CONFIGURATION DE LA PAGE ###
@@ -132,14 +134,14 @@ st.set_page_config(
 )
 
 ### VARIABLES ###
-dfspam, model, pipeline_model = firstco()
+# dfspam, model, pipeline_model = firstco()
 
-def Spam_or_ham(msg :str, model: str):
+def Spam_or_ham(msg :str, model_name: str, model):
     msg = clean_text(msg)
     msgarray = []
     msgarray.append(msg)
     msgarray = np.array(msgarray)
-    if model == "TensorFlow":
+    if model_name == "TensorFlow":
         sequences = tokenizer.texts_to_sequences(msgarray)
         padded = pad_sequences (sequences, maxlen = max_len, padding = padding_type, truncating = trunc_type )
         result = model.predict(padded,
@@ -188,8 +190,6 @@ else:
 
 if st.button('Valider'):
     if text_input:
-        Spam_or_ham(text_input, option)
+        st.write(Spam_or_ham(text_input, option, model))
     else:
         st.write("Veuillez entrer du texte dans la zone de texte.")
-
-
