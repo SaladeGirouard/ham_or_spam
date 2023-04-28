@@ -220,9 +220,9 @@ if st.button('Valider'):
         hamprob = (result_skl[0][0]+(1-result[0][0]))/2
         spamprob = (result_skl[0][1]+result[0][0])/2
         if hamprob>spamprob :
-            st.write(''This message is ham at '+str(round(hamprob,2))+' % confidence'
+            st.write('This message is ham at '+str(round(hamprob,2))+' % confidence')
         else :
-            st.write(''This message is spam at '+str(round(spamprob,2))+' % confidence'
+            st.write('This message is spam at '+str(round(spamprob,2))+' % confidence')
           
     else:
         st.write("Veuillez entrer du texte dans la zone de texte.")
