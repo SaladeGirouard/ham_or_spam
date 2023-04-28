@@ -125,11 +125,11 @@ st.set_page_config(
      page_icon="📧",
      layout="wide",
      initial_sidebar_state="expanded",
-     menu_items={
-        'Get Help':  None,
-         'Report a bug': None,
-         'About': "# Bienvenue ! # \n"
-         "Un projet de Romain Ulrich, Adil Allouche et Charles Girouard"
+#      menu_items={
+#         'Get Help':  None,
+#          'Report a bug': None,
+#          'About': "# Bienvenue ! # \n"
+#          "Un projet de Romain Ulrich, Adil Allouche et Charles Girouard"
      }
 )
 
