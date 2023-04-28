@@ -152,18 +152,20 @@ def Spam_or_ham(msg :str, model_name: str, model):
         max_queue_size=10,
         workers=1,
         use_multiprocessing=False)
-        if result[0][0]<0.2 :
+        if result[0][0]<0.5 :
             confidence = (1-result[0][0])*100
             text = 'This message is a ham at '+str(round(confidence,2))+' % confidence'
         else:
             confidence =result[0][0]*100
             text = 'This message is a spam at '+str(round(confidence,2))+' % confidence'
     else :
-        prediction = pipeline_model.predict(msgarray)
-        if prediction[0] == "ham":
-            text= 'This message is a ham'
+        prediction = pipeline_model.predict_proba(msgarray)
+        if prediction[0][0]>0.5 :
+            confidence = prediction[0][0]*100
+            text = 'This message is ham at '+str(round(confidence,2))+' % confidence'
         else:
-            text='This message is a spam'
+            confidence =prediction[0][1]*100
+            text = 'This message is a spam at '+str(round(confidence,2))+' % confidence'
     return text
 
 
