@@ -169,10 +169,12 @@ def Spam_or_ham(msg :str, model_name: str, model):
 
 ##### INTERFACE #####
 
-st.write(
-    "<div style='text-align: center;'><h1 style='font-family: Comic Sans MS;'>Ham or Spam?</h1></div>",
-    unsafe_allow_html=True
-)
+# st.write(
+#     "<div style='text-align: center;'><h1 style='font-family: Comic Sans MS;'>Ham or Spam?</h1></div>",
+#     unsafe_allow_html=True
+# )
+
+st.image("hamjam.png")
 
 
 text_input = st.text_input('Entrez du texte :', key='input_text')
