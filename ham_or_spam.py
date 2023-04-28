@@ -130,7 +130,7 @@ st.set_page_config(
 #          'Report a bug': None,
 #          'About': "# Bienvenue ! # \n"
 #          "Un projet de Romain Ulrich, Adil Allouche et Charles Girouard"
-     }
+#      }
 )
 
 ### VARIABLES ###
