@@ -217,8 +217,8 @@ if st.button('Valider'):
         result_skl = pipeline_model.predict_proba(msgarray)
 
 
-        hamprob = (result_skl[0][0]+(1-result[0][0]))/2
-        spamprob = (result_skl[0][1]+result[0][0])/2
+        hamprob = (result_skl[0][0]+(1-result[0][0]))/2*100
+        spamprob = (result_skl[0][1]+result[0][0])/2*100
         if hamprob>spamprob :
             st.write('This message is ham at '+str(round(hamprob,2))+' % confidence')
         else :
