@@ -182,18 +182,47 @@ st.image("hamjam.png")
 text_input = st.text_input('Entrez du texte :', key='input_text')
 
 
-option = st.radio('On part sur quel algo ?', ('Scikit-Learn', 'TensorFlow'))
+option = st.radio('On part sur quel algo ?', ('Scikit-Learn', 'TensorFlow','Ensemble')
 
 
 if option == 'Scikit-Learn':
     st.session_state['option2_checked'] = False
-else:
+    st.session_state['option3_checked'] = False
+elif option =='TensorFlow':
     st.session_state['option1_checked'] = False
+    st.session_state['option3_checked'] = False
+elif option =='Ensemble':
+    st.session_state['option1_checked'] = False
+    st.session_state['option2_checked'] = False
 
 
 
 if st.button('Valider'):
-    if text_input:
+    if text_input and option =='Scikit-Learn':
         st.write(Spam_or_ham(text_input, option, model))
+    elif text_input and option =='TensorFlow':
+        st.write(Spam_or_ham(text_input, option, model))
+    elif text_input and option =='Ensemble':
+        msg = clean_text(text_input)
+        msgarray = []
+        msgarray.append(msg)
+        msgarray = np.array(msgarray)
+        sequences = tokenizer.texts_to_sequences(msgarray)
+
+        padded = pad_sequences (sequences, maxlen = max_len, padding = padding_type, truncating = trunc_type )
+
+        result = model.predict(padded,batch_size=None,verbose='auto',steps=None,callbacks=None,
+        max_queue_size=10,workers=1,use_multiprocessing=False)
+
+        result_skl = pipeline_model.predict_proba(msgarray)
+
+
+        hamprob = (result_skl[0][0]+(1-result[0][0]))/2
+        spamprob = (result_skl[0][1]+result[0][0])/2
+        if hamprob>spamprob :
+            st.write(''This message is ham at '+str(round(hamprob,2))+' % confidence'
+        else :
+            st.write(''This message is spam at '+str(round(spamprob,2))+' % confidence'
+          
     else:
         st.write("Veuillez entrer du texte dans la zone de texte.")
