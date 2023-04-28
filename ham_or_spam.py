@@ -182,7 +182,7 @@ st.image("hamjam.png")
 text_input = st.text_input('Entrez du texte :', key='input_text')
 
 
-option = st.radio('On part sur quel algo ?', ('Scikit-Learn', 'TensorFlow','Ensemble')
+option = st.radio('On part sur quel algo ?', ('Scikit-Learn', 'TensorFlow','Ensemble'))
 
 
 if option == 'Scikit-Learn':
