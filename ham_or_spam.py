@@ -8,7 +8,6 @@ import string
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-from sklearn.metrics import classification_report
 from sklearn.naive_bayes import MultinomialNB
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
@@ -48,8 +47,8 @@ def clean_text(text):
 dfspam['comment_clean'] = dfspam['comment'].apply(clean_text)
 
 # Préparation des données pour le modèle Scikit-learn
-X = dfspam['comment_clean']
-y = dfspam['Type']
+X = dfspam['comment_clean'].values
+y = dfspam['Type'].values
 
 # Fonction pour entraîner et évaluer un modèle
 @st.cache_resource
@@ -70,7 +69,7 @@ pipeline_model = train_model(model_naive, X, y)
 # Préparation des données pour le modèle TensorFlow
 dfspam['msg_type'] = dfspam['Type'].map({'ham': 0, 'spam': 1})
 msg_label = dfspam['msg_type'].values
-train_msg, test_msg, train_labels, test_labels = train_test_split(dfspam['comment_clean'], msg_label, test_size=0.2, random_state=22)
+train_msg, test_msg, train_labels, test_labels = train_test_split(dfspam['comment_clean'].values, msg_label, test_size=0.2, random_state=22)
 
 # Tokenisation et padding
 max_len = 50
