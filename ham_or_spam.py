@@ -16,13 +16,13 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, GlobalAveragePooling1D, Dense, Dropout
 
-# Téléchargement des ressources NLTK
+# Téléchargement des ressources NLTK (une seule fois)
 nltk.download('omw-1.4')
 nltk.download('stopwords')
 nltk.download('wordnet')
 nltk.download('punkt')
 
-# Chargement des données
+# 1. Chargement du CSV (mis en cache)
 @st.cache_data
 def load_data():
     dfspam = pd.read_csv('SMSSpamCollection.csv', sep="\t", header=None, names=['Type', 'comment'])
@@ -30,12 +30,11 @@ def load_data():
 
 dfspam = load_data()
 
-# Définir les stopwords, la ponctuation et le lemmatiseur
+# 2. Nettoyage des données et préparation des features
 stopwords = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 lemmatizer = WordNetLemmatizer()
 
-# Fonction pour nettoyer le texte
 def clean_text(text):
     text = text.lower()
     text = ''.join(char for char in text if char not in punctuation)
@@ -43,127 +42,83 @@ def clean_text(text):
     text = ' '.join(lemmatizer.lemmatize(word) for word in tokens if word not in stopwords)
     return text
 
-# Nettoyage des données
 dfspam['comment_clean'] = dfspam['comment'].apply(clean_text)
 
-# Préparation des données pour le modèle Scikit-learn
+# 3. Préparation des données pour les modèles
 X = dfspam['comment_clean'].values
-y = dfspam['Type'].values
+y = dfspam['Type'].map({'ham': 0, 'spam': 1}).values  # Conversion en 0/1 pour éviter les problèmes de stratification
 
-# Fonction pour entraîner et évaluer un modèle
+# 4. Entraînement des modèles (mis en cache)
 @st.cache_resource
-def train_model(_model, X, y):
-    x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, shuffle=True, stratify=y)
-    pipeline_model = Pipeline([
+def train_models(X, y):
+    # Modèle Scikit-Learn (Naive Bayes)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    pipeline_nb = Pipeline([
         ('vect', CountVectorizer()),
         ('tfidf', TfidfTransformer()),
-        ('clf', _model)
+        ('clf', MultinomialNB())
     ])
-    pipeline_model.fit(x_train, y_train)
-    return pipeline_model
+    pipeline_nb.fit(X_train, y_train)
 
-# Entraînement du modèle Naive Bayes
-model_naive = MultinomialNB()
-pipeline_model = train_model(model_naive, X, y)
+    # Modèle TensorFlow
+    tokenizer = Tokenizer(num_words=500, oov_token="<OOV>")
+    tokenizer.fit_on_texts(X_train)
 
-# Préparation des données pour le modèle TensorFlow
-dfspam['msg_type'] = dfspam['Type'].map({'ham': 0, 'spam': 1})
-msg_label = dfspam['msg_type'].values
-train_msg, test_msg, train_labels, test_labels = train_test_split(dfspam['comment_clean'].values, msg_label, test_size=0.2, random_state=22)
+    train_sequences = tokenizer.texts_to_sequences(X_train)
+    train_padded = pad_sequences(train_sequences, maxlen=50, padding="post", truncating="post")
 
-# Tokenisation et padding
-max_len = 50
-trunc_type = "post"
-padding_type = "post"
-oov_tok = "<OOV>"
-vocab_size = 500
-tokenizer = Tokenizer(num_words=vocab_size, char_level=False, oov_token=oov_tok)
-tokenizer.fit_on_texts(train_msg)
+    model_tf = Sequential([
+        Embedding(500, 16, input_length=50),
+        GlobalAveragePooling1D(),
+        Dense(24, activation='relu'),
+        Dropout(0.2),
+        Dense(1, activation='sigmoid')
+    ])
+    model_tf.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model_tf.fit(
+        train_padded, y_train,
+        epochs=30,
+        validation_split=0.2,
+        callbacks=[EarlyStopping(monitor='val_loss', patience=3)],
+        verbose=0
+    )
 
-training_sequences = tokenizer.texts_to_sequences(train_msg)
-training_padded = pad_sequences(training_sequences, maxlen=max_len, padding=padding_type, truncating=trunc_type)
-testing_sequences = tokenizer.texts_to_sequences(test_msg)
-testing_padded = pad_sequences(testing_sequences, maxlen=max_len, padding=padding_type, truncating=trunc_type)
+    return pipeline_nb, model_tf, tokenizer
 
-# Architecture du modèle TensorFlow
-embedding_dim = 16
-drop_value = 0.2
-n_dense = 24
+# 5. Chargement/entraînement des modèles (une seule fois)
+pipeline_nb, model_tf, tokenizer = train_models(X, y)
 
-model = Sequential([
-    Embedding(vocab_size, embedding_dim, input_length=max_len),
-    GlobalAveragePooling1D(),
-    Dense(24, activation='relu'),
-    Dropout(drop_value),
-    Dense(1, activation='sigmoid')
-])
+# 6. Fonction de prédiction
+def predict_message(msg, model_type):
+    msg_clean = clean_text(msg)
+    msg_array = np.array([msg_clean])
 
-model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    if model_type == "TensorFlow":
+        sequence = tokenizer.texts_to_sequences(msg_array)
+        padded = pad_sequences(sequence, maxlen=50, padding="post", truncating="post")
+        prob = model_tf.predict(padded, verbose=0)[0][0]
+        confidence = prob * 100 if prob > 0.5 else (1 - prob) * 100
+        label = "spam" if prob > 0.5 else "ham"
+    else:  # Scikit-Learn
+        prob = pipeline_nb.predict_proba(msg_array)[0]
+        confidence = prob[0] * 100 if prob[0] > 0.5 else prob[1] * 100
+        label = "ham" if prob[0] > 0.5 else "spam"
 
-# Entraînement du modèle
-num_epochs = 30
-early_stop = EarlyStopping(monitor='val_loss', patience=3)
-history = model.fit(
-    training_padded, train_labels,
-    epochs=num_epochs,
-    validation_data=(testing_padded, test_labels),
-    callbacks=[early_stop],
-    verbose=2
-)
+    return f"This message is {label} at {round(confidence, 2)}% confidence"
 
-# Fonction pour prédire si un message est du spam ou non
-def Spam_or_ham(msg: str, model_name: str, model):
-    msg = clean_text(msg)
-    msgarray = np.array([msg])
-
-    if model_name == "TensorFlow":
-        sequences = tokenizer.texts_to_sequences(msgarray)
-        padded = pad_sequences(sequences, maxlen=max_len, padding=padding_type, truncating=trunc_type)
-        result = model.predict(padded, verbose=0)
-        confidence = result[0][0] * 100
-        if result[0][0] < 0.5:
-            text = f'This message is a ham at {round(100 - confidence, 2)}% confidence'
-        else:
-            text = f'This message is a spam at {round(confidence, 2)}% confidence'
-    else:
-        prediction = pipeline_model.predict_proba(msgarray)
-        confidence = prediction[0][0] * 100
-        if prediction[0][0] > 0.5:
-            text = f'This message is ham at {round(confidence, 2)}% confidence'
-        else:
-            text = f'This message is a spam at {round(100 - confidence, 2)}% confidence'
-    return text
-
-# Interface Streamlit
+# 7. Interface Streamlit
 st.set_page_config(
     page_title="Ham or Spam?",
     page_icon="📧",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 st.image("hamjam.png")
-text_input = st.text_input('Entrez du texte :', key='input_text')
-option = st.radio('On part sur quel algo ?', ('Scikit-Learn', 'TensorFlow', 'Ensemble'))
+text_input = st.text_input('Entrez du texte :')
+model_option = st.radio("Choisissez le modèle :", ('Scikit-Learn', 'TensorFlow'))
 
-if st.button('Valider'):
+if st.button('Prédire'):
     if text_input:
-        if option == 'Scikit-Learn':
-            st.write(Spam_or_ham(text_input, option, model_naive))
-        elif option == 'TensorFlow':
-            st.write(Spam_or_ham(text_input, option, model))
-        elif option == 'Ensemble':
-            msg = clean_text(text_input)
-            msgarray = np.array([msg])
-            sequences = tokenizer.texts_to_sequences(msgarray)
-            padded = pad_sequences(sequences, maxlen=max_len, padding=padding_type, truncating=trunc_type)
-            result = model.predict(padded, verbose=0)
-            result_skl = pipeline_model.predict_proba(msgarray)
-            hamprob = (result_skl[0][0] + (1 - result[0][0])) / 2 * 100
-            spamprob = (result_skl[0][1] + result[0][0]) / 2 * 100
-            if hamprob > spamprob:
-                st.write(f'This message is ham at {round(hamprob, 2)}% confidence')
-            else:
-                st.write(f'This message is spam at {round(spamprob, 2)}% confidence')
+        st.write(predict_message(text_input, model_option))
     else:
-        st.write("Veuillez entrer du texte dans la zone de texte.")
+        st.warning("Veuillez entrer un message.")
