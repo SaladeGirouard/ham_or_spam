@@ -26,6 +26,7 @@ nltk.download('punkt')
 @st.cache_data
 def load_data():
     dfspam = pd.read_csv('SMSSpamCollection.csv', sep="\t", header=None, names=['Type', 'comment'])
+    dfspam = dfspam.dropna(subset=['Type', 'comment'])
     return dfspam
 
 dfspam = load_data()
@@ -46,7 +47,7 @@ dfspam['comment_clean'] = dfspam['comment'].apply(clean_text)
 
 # 3. Préparation des données pour les modèles
 X = dfspam['comment_clean'].values
-y = dfspam['Type'].map({'ham': 0, 'spam': 1}).values  # Conversion en 0/1 pour éviter les problèmes de stratification
+y = dfspam['Type'].replace({'ham': 0, 'spam': 1}).values  # Conversion en 0/1 pour éviter les problèmes de stratification
 
 # 4. Entraînement des modèles (mis en cache)
 @st.cache_resource
@@ -122,3 +123,4 @@ if st.button('Prédire'):
         st.write(predict_message(text_input, model_option))
     else:
         st.warning("Veuillez entrer un message.")
+
