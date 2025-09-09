@@ -16,22 +16,27 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, GlobalAveragePooling1D, Dense, Dropout
 
-# Téléchargement des ressources NLTK (une seule fois)
+# Téléchargement des ressources NLTK
 nltk.download('omw-1.4')
 nltk.download('stopwords')
 nltk.download('wordnet')
 nltk.download('punkt')
 
-# 1. Chargement du CSV (mis en cache)
+# 1. Chargement et nettoyage du CSV
 @st.cache_data
 def load_data():
     dfspam = pd.read_csv('SMSSpamCollection.csv', sep="\t", header=None, names=['Type', 'comment'])
-    dfspam = dfspam.dropna(subset=['Type', 'comment'])
+    dfspam = dfspam.dropna()  # Supprime les lignes avec des NaN
+    dfspam = dfspam[dfspam['Type'].isin(['ham', 'spam'])]  # Garde seulement les lignes valides
     return dfspam
 
 dfspam = load_data()
 
-# 2. Nettoyage des données et préparation des features
+# 2. Diagnostic des données
+print("Valeurs uniques dans 'Type' :", dfspam['Type'].unique())
+print("Nombre de ham/spam :\n", dfspam['Type'].value_counts())
+
+# 3. Nettoyage du texte
 stopwords = set(stopwords.words('english'))
 punctuation = set(string.punctuation)
 lemmatizer = WordNetLemmatizer()
@@ -45,11 +50,19 @@ def clean_text(text):
 
 dfspam['comment_clean'] = dfspam['comment'].apply(clean_text)
 
-# 3. Préparation des données pour les modèles
-X = dfspam['comment_clean'].values
-y = dfspam['Type'].replace({'ham': 0, 'spam': 1}).values  # Conversion en 0/1 pour éviter les problèmes de stratification
+# 4. Conversion des labels en 0/1 (robuste)
+dfspam['msg_type'] = dfspam['Type'].apply(lambda x: 0 if x == 'ham' else 1)
+y = dfspam['msg_type'].values
+print("Valeurs uniques dans y :", np.unique(y))  # Doit afficher [0 1]
 
-# 4. Entraînement des modèles (mis en cache)
+# 5. Vérification du type de y
+if not np.issubdtype(y.dtype, np.integer):
+    raise ValueError("y doit être un tableau d'entiers (0/1). Vérifie les données.")
+
+# 6. Préparation des données pour les modèles
+X = dfspam['comment_clean'].values
+
+# 7. Entraînement des modèles (mis en cache)
 @st.cache_resource
 def train_models(X, y):
     # Modèle Scikit-Learn (Naive Bayes)
@@ -86,10 +99,9 @@ def train_models(X, y):
 
     return pipeline_nb, model_tf, tokenizer
 
-# 5. Chargement/entraînement des modèles (une seule fois)
 pipeline_nb, model_tf, tokenizer = train_models(X, y)
 
-# 6. Fonction de prédiction
+# 8. Fonction de prédiction (inchangée)
 def predict_message(msg, model_type):
     msg_clean = clean_text(msg)
     msg_array = np.array([msg_clean])
@@ -107,13 +119,8 @@ def predict_message(msg, model_type):
 
     return f"This message is {label} at {round(confidence, 2)}% confidence"
 
-# 7. Interface Streamlit
-st.set_page_config(
-    page_title="Ham or Spam?",
-    page_icon="📧",
-    layout="wide"
-)
-
+# 9. Interface Streamlit (inchangée)
+st.set_page_config(page_title="Ham or Spam?", page_icon="📧", layout="wide")
 st.image("hamjam.png")
 text_input = st.text_input('Entrez du texte :')
 model_option = st.radio("Choisissez le modèle :", ('Scikit-Learn', 'TensorFlow'))
@@ -123,4 +130,3 @@ if st.button('Prédire'):
         st.write(predict_message(text_input, model_option))
     else:
         st.warning("Veuillez entrer un message.")
-
