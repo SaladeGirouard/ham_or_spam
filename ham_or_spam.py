@@ -52,12 +52,12 @@ y = dfspam['Type'].values
 
 # Fonction pour entraîner et évaluer un modèle
 @st.cache_resource
-def train_model(model, X, y):
+def train_model(_model, X, y):
     x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, shuffle=True, stratify=y)
     pipeline_model = Pipeline([
         ('vect', CountVectorizer()),
         ('tfidf', TfidfTransformer()),
-        ('clf', model)
+        ('clf', _model)
     ])
     pipeline_model.fit(x_train, y_train)
     return pipeline_model
